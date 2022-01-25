@@ -30,3 +30,15 @@ root_folder_id = root
 gclone copy gc:{source} gc:{destination} --drive-server-side-across-configs
 ```
 **Note:** Provide Team Drive ID or Folder ID as `source` and `destination`
+
+## Caveats
+
+Creating Service Accounts (SAs) allows you to bypass some of Google's quotas. Tools like Autorclone and gclone automatically rotates SAs for continuous multi-terabyte file transfer.
+
+> Quotas SAs **CAN** bypass:
+* Google 'copy/upload' quota (750GB/account/day)
+* Google 'download' quota (10TB/account/day)
+
+> Quotas SAs **CANNOT** bypass:
+* Google 'Shared Drive' quota (~20TB/drive/day)
+* Google 'file owner' quota (~2TB/day)

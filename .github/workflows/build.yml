@@ -17,17 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job_name: ['linux', 'mac_amd64', 'mac_arm64', 'windows_amd64', 'windows_386', 'other_os', 'go1.14', 'go1.15', 'go1.16']
+        job_name: ['linux', 'mac_amd64', 'mac_arm64', 'windows_amd64', 'windows_386']
 
         include:
           - job_name: linux
             os: ubuntu-latest
             go: '1.17.x'
             gotags: cmount
-            build_flags: '-include "^linux/"'
+            build_flags: '-include "^linux/" -exclude "^(linux/mips|linux/mipsle)"'
             check: false
-            quicktest: false
-            racequicktest: false
             deploy: true
 
           - job_name: mac_amd64
@@ -35,8 +33,6 @@ jobs:
             go: '1.17.x'
             gotags: 'cmount'
             build_flags: '-include "^darwin/amd64" -cgo'
-            quicktest: false
-            racequicktest: false
             deploy: true
 
           - job_name: mac_arm64
@@ -52,8 +48,6 @@ jobs:
             gotags: cmount
             build_flags: '-include "^windows/amd64" -cgo'
             build_args: '-buildmode exe'
-            quicktest: false
-            racequicktest: false
             deploy: true
 
           - job_name: windows_386
@@ -64,33 +58,7 @@ jobs:
             cgo: '1'
             build_flags: '-include "^windows/386" -cgo'
             build_args: '-buildmode exe'
-            quicktest: false
             deploy: true
-
-          - job_name: other_os
-            os: ubuntu-latest
-            go: '1.17.x'
-            build_flags: '-exclude "^(windows/|darwin/|linux/)"'
-            compile_all: false
-            deploy: true
-
-          - job_name: go1.14
-            os: ubuntu-latest
-            go: '1.14.x'
-            quicktest: true
-            racequicktest: true
-
-          - job_name: go1.15
-            os: ubuntu-latest
-            go: '1.15.x'
-            quicktest: true
-            racequicktest: true
-
-          - job_name: go1.16
-            os: ubuntu-latest
-            go: '1.16.x'
-            quicktest: true
-            racequicktest: true
 
     name: ${{ matrix.job_name }}
 
@@ -116,6 +84,7 @@ jobs:
           echo 'BUILD_ARGS=${{ matrix.build_args }}' >> $GITHUB_ENV
           if [[ "${{ matrix.goarch }}" != "" ]]; then echo 'GOARCH=${{ matrix.goarch }}' >> $GITHUB_ENV ; fi
           if [[ "${{ matrix.cgo }}" != "" ]]; then echo 'CGO_ENABLED=${{ matrix.cgo }}' >> $GITHUB_ENV ; fi
+
       - name: Install Libraries on Linux
         shell: bash
         run: |
@@ -159,6 +128,7 @@ jobs:
           make vars
           printf "\n\nSystem environment:\n\n"
           env
+
       - name: Go module cache
         uses: actions/cache@v2
         with:
@@ -166,29 +136,6 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Build gclone
-        shell: bash
-        run: |
-          make
-        if: false
-      - name: Run tests
-        shell: bash
-        run: |
-          make quicktest
-        if: matrix.quicktest
-
-      - name: Race test
-        shell: bash
-        run: |
-          make racequicktest
-        if: matrix.racequicktest
-
-      - name: Compile all architectures test
-        shell: bash
-        run: |
-          make
-          make compile_all
-        if: matrix.compile_all
 
       - name: Deploy built binaries
         shell: bash
@@ -196,109 +143,8 @@ jobs:
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then make release_dep_linux ; fi
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then make release_dep_windows ; fi
           make upload_github
-        # make compile_all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # working-directory: '$(modulePath)'
         # Deploy binaries if enabled in config && not a PR && not a fork
         if: matrix.deploy && github.head_ref == '' && github.repository == 'l3v11/gclone'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  lint:
-    if: ${{ github.repository == 'rclone/rclone' || github.event.inputs.manual }}
-    timeout-minutes: 30
-    name: "lint"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Code quality test
-        uses: golangci/golangci-lint-action@v2
-        with:
-          # Optional: version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest` to use the latest version
-          version: latest
-
-  android:
-    timeout-minutes: 30
-    name: "android-all"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      # Upgrade together with NDK version
-      - name: Set up Go 1.16
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.16
-
-      # Upgrade together with Go version. Using a GitHub-provided version saves around 2 minutes.
-      - name: Force NDK version
-        run: echo "y" | sudo ${ANDROID_HOME}/tools/bin/sdkmanager --install "ndk;22.1.7171670" | grep -v = || true
-
-      - name: Go module cache
-        uses: actions/cache@v2
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-      - name: Set global environment variables
-        shell: bash
-        run: |
-          echo "VERSION=$(make version)" >> $GITHUB_ENV
-      - name: build native gclone
-        run: |
-          make
-      - name: arm-v7a Set environment variables
-        shell: bash
-        run: |
-          echo "CC=$(echo $ANDROID_HOME/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi16-clang)" >> $GITHUB_ENV
-          echo "CC_FOR_TARGET=$CC" >> $GITHUB_ENV
-          echo 'GOOS=android' >> $GITHUB_ENV
-          echo 'GOARCH=arm' >> $GITHUB_ENV
-          echo 'GOARM=7' >> $GITHUB_ENV
-          echo 'CGO_ENABLED=1' >> $GITHUB_ENV
-          echo 'CGO_LDFLAGS=-fuse-ld=lld -s -w' >> $GITHUB_ENV
-      - name: arm-v7a build
-        run: go build -v -tags android -trimpath  -o build/gclone-android-16-armv7a .
-
-      - name: arm64-v8a Set environment variables
-        shell: bash
-        run: |
-          echo "CC=$(echo $ANDROID_HOME/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang)" >> $GITHUB_ENV
-          echo "CC_FOR_TARGET=$CC" >> $GITHUB_ENV
-          echo 'GOOS=android' >> $GITHUB_ENV
-          echo 'GOARCH=arm64' >> $GITHUB_ENV
-          echo 'CGO_ENABLED=1' >> $GITHUB_ENV
-          echo 'CGO_LDFLAGS=-fuse-ld=lld -s -w' >> $GITHUB_ENV
-      - name: arm64-v8a build
-        run: go build -v -tags android -trimpath -o build/gclone-android-21-armv8a .
-
-      - name: x86 Set environment variables
-        shell: bash
-        run: |
-          echo "CC=$(echo $ANDROID_HOME/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android16-clang)" >> $GITHUB_ENV
-          echo "CC_FOR_TARGET=$CC" >> $GITHUB_ENV
-          echo 'GOOS=android' >> $GITHUB_ENV
-          echo 'GOARCH=386' >> $GITHUB_ENV
-          echo 'CGO_ENABLED=1' >> $GITHUB_ENV
-          echo 'CGO_LDFLAGS=-fuse-ld=lld -s -w' >> $GITHUB_ENV
-      - name: x86 build
-        run: go build -v -tags android -trimpath -o build/gclone-android-16-x86 .
-
-      - name: x64 Set environment variables
-        shell: bash
-        run: |
-          echo "CC=$(echo $ANDROID_HOME/ndk/22.1.7171670/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang)" >> $GITHUB_ENV
-          echo "CC_FOR_TARGET=$CC" >> $GITHUB_ENV
-          echo 'GOOS=android' >> $GITHUB_ENV
-          echo 'GOARCH=amd64' >> $GITHUB_ENV
-          echo 'CGO_ENABLED=1' >> $GITHUB_ENV
-          echo 'CGO_LDFLAGS=-fuse-ld=lld -s -w' >> $GITHUB_ENV
-      - name: x64 build
-        run: go build -v -tags android -trimpath -o build/gclone-android-21-x64 .

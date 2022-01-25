@@ -150,7 +150,7 @@ func buildZip(dir string) string {
 	// Now build the zip
 	//run("cp", "-a", "../MANUAL.txt", filepath.Join(dir, "README.txt"))
 	//run("cp", "-a", "../MANUAL.html", filepath.Join(dir, "README.html"))
-	//run("cp", "-a", "../gclone.1", dir)
+	//run("cp", "-a", "../rclone.1", dir)
 	if *gitLog != "" {
 		run("cp", "-a", *gitLog, dir)
 	}

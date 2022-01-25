@@ -13,7 +13,6 @@ if [ "$1" == "" ]; then
     exit 1
 fi
 VERSION="$1"
-#ANCHOR=$(grep '^## v' docs/content/changelog.md | head -1 | sed 's/^## //; s/[^A-Za-z0-9-]/-/g; s/--*/-/g')
 
 function create_release() {
 cat > "/tmp/${VERSION}-release-notes" <<EOF
@@ -30,12 +29,11 @@ gh release create "${VERSION}" \
 {
   create_release
 } || {
-  echo "create existed release failed"
+  echo "Skipped release creation"
 }
-for build in build/*; do
+for build in build/*.zip build/version.txt; do
     case $build in
         *current*) continue ;;
-        *testbuilds*) continue ;;
     esac
     echo "Uploading ${build} "
     gh release upload "${VERSION}" \
