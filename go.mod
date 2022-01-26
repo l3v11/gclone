@@ -3,7 +3,6 @@ module github.com/l3v11/gclone
 replace github.com/jlaffaye/ftp => github.com/rclone/ftp v1.0.0-210902f
 
 require (
-	github.com/pkg/errors v0.9.1
 	github.com/rclone/rclone v1.57.0
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
