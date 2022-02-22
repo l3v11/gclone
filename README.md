@@ -1,17 +1,18 @@
-# gclone
+# Gclone
 
-A modified version of the [rclone](//github.com/rclone/rclone)
+Gclone *(a modified version of the [rclone](https://github.com/rclone/rclone))* is a command-line program to sync files and directories to and from Google Drive.
 
-Original [donwa/gclone](https://github.com/donwa/gclone) but synced with rclone version for getting the latest features and bug fixes
+## Features
 
-Provides dynamic replacement of SA files support for Google Drive operation for bypassing the 750GB/day limit
+- Synced with rclone version for getting the latest features and bug fixes
+- Provides dynamic replacement of the Service Accounts (SAs) for bypassing the 750GB/day limit of Google Drive
 
 
 ## Instructions
 
 ### 1. Configuring the service_account_file_path
 
-Add `service_account_file_path` in config file for dynamic replacement of *service_account_file* (SAs). Replaces when `rateLimitExceeded` error occurs.
+Add `service_account_file_path` in config file for dynamic replacement of Service Accounts (SAs). Replaces when `rateLimitExceeded` error occurs.
 
 > ***rclone.conf*** example:
 ```
@@ -42,3 +43,9 @@ Creating Service Accounts (SAs) allows you to bypass some of Google's quotas. To
 > Quotas SAs **CANNOT** bypass:
 * Google 'Shared Drive' quota (~20TB/drive/day)
 * Google 'file owner' quota (~2TB/day)
+
+## Credits
+
+- [rclone](https://github.com/rclone)
+- [donwa](https://github.com/donwa)
+- [dogbutcat](https://github.com/dogbutcat)
