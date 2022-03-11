@@ -282,6 +282,10 @@ a non root folder as its starting point.
 			Name: "service_account_file",
 			Help: "Service Account Credentials JSON file path.\n\nLeave blank normally.\nNeeded only if you want use SA instead of interactive login." + env.ShellExpandHelp,
 		}, {
+			Name:     "service_account_file_path",
+			Help:     "Service Account Credentials JSON files directory.\n\nLeave blank normally.\nNeeded only if you want use dynamic SA rotation." + env.ShellExpandHelp,
+			Advanced: true,
+		}, {
 			Name:     "service_account_credentials",
 			Help:     "Service Account Credentials JSON blob.\n\nLeave blank normally.\nNeeded only if you want use SA instead of interactive login.",
 			Hide:     fs.OptionHideConfigurator,
@@ -305,8 +309,10 @@ a non root folder as its starting point.
 			Name:    "copy_shortcut_content",
 			Default: false,
 			Help: `Server side copy contents of shortcuts instead of the shortcut.
+
 When doing server side copies, normally rclone will copy shortcuts as
 shortcuts.
+
 If this flag is used then rclone will copy the contents of shortcuts
 rather than shortcuts themselves when doing server side copies.`,
 			Advanced: true,
@@ -559,6 +565,7 @@ If this flag is set then rclone will ignore shortcut files completely.
 		}, {
 			Name: "skip_dangling_shortcuts",
 			Help: `If set skip dangling shortcut files.
+
 If this is set then rclone will not show any dangling shortcuts in listings.
 `,
 			Advanced: true,
@@ -593,6 +600,9 @@ type Options struct {
 	RootFolderID              string               `config:"root_folder_id"`
 	ServiceAccountFile        string               `config:"service_account_file"`
 	ServiceAccountCredentials string               `config:"service_account_credentials"`
+	//------------------------------------------------------------
+	ServiceAccountFilePath    string               `config:"service_account_file_path"`
+	//------------------------------------------------------------
 	TeamDriveID               string               `config:"team_drive"`
 	AuthOwnerOnly             bool                 `config:"auth_owner_only"`
 	UseTrash                  bool                 `config:"use_trash"`
@@ -625,8 +635,6 @@ type Options struct {
 	SkipShortcuts             bool                 `config:"skip_shortcuts"`
 	SkipDanglingShortcuts     bool                 `config:"skip_dangling_shortcuts"`
 	Enc                       encoder.MultiEncoder `config:"encoding"`
-	//-----------------------------------------------------------
-	ServiceAccountFilePath string `config:"service_account_file_path"`
 }
 
 // Fs represents a remote drive server
@@ -652,10 +660,11 @@ type Fs struct {
 	listRmu          *sync.Mutex         // protects listRempties
 	listRempties     map[string]struct{} // IDs of supposedly empty directories which triggered grouping disable
 	//------------------------------------------------------------
-	ServiceAccountFiles map[string]int
-	waitChangeSvc       sync.Mutex
-	FileObj             *fs.Object
-	maybeIsFile         bool
+	saFiles          map[string]int
+	doChangeSvc      *sync.Mutex
+	FileObj          *fs.Object
+	maybeIsFile      bool
+	//------------------------------------------------------------
 }
 
 type baseObject struct {
@@ -729,11 +738,11 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 		if len(gerr.Errors) > 0 {
 			reason := gerr.Errors[0].Reason
 			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" {
-				// 如果存在 ServiceAccountFilePath,调用 changeSvc, 重试
+				// If ServiceAccountFilePath exists, call changeSvc and try again
 				if f.opt.ServiceAccountFilePath != "" {
-					f.waitChangeSvc.Lock()
+					f.doChangeSvc.Lock()
 					f.changeSvc(ctx)
-					f.waitChangeSvc.Unlock()
+					f.doChangeSvc.Unlock()
 					return true, err
 				}
 				if f.opt.StopOnUploadLimit && gerr.Errors[0].Message == "User rate limit exceeded." {
@@ -753,56 +762,72 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 	return false, err
 }
 
-// patch 1: 替换 service file
+//------------------------------------------------------------
+// Replaces service account file
 func (f *Fs) changeSvc(ctx context.Context) {
 	opt := &f.opt
 	/**
-	 *  获取sa文件列表
+	 *  Get a list of service account files from directory
 	 */
-	if opt.ServiceAccountFilePath != "" && len(f.ServiceAccountFiles) == 0 {
-		f.ServiceAccountFiles = make(map[string]int)
-		dir_list, e := ioutil.ReadDir(opt.ServiceAccountFilePath)
-		if e != nil {
-			fmt.Println("read ServiceAccountFilePath Files error")
+	if opt.ServiceAccountFilePath != "" && len(f.saFiles) == 0 {
+		pathSeparator := string(os.PathSeparator)
+		if !strings.HasSuffix(opt.ServiceAccountFilePath, pathSeparator) {
+			opt.ServiceAccountFilePath += pathSeparator
+		}
+		f.saFiles = make(map[string]int)
+		dir_list, err := ioutil.ReadDir(opt.ServiceAccountFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read service account file path: %w", err)
 		}
 		for i, v := range dir_list {
 			filePath := fmt.Sprintf("%s%s", opt.ServiceAccountFilePath, v.Name())
 			if ".json" == path.Ext(filePath) {
-				//fmt.Println(filePath)
-				f.ServiceAccountFiles[filePath] = i
+				f.saFiles[filePath] = i
 			}
 		}
 	}
-	// 如果读取文件夹后还是0 , 退出
-	if len(f.ServiceAccountFiles) <= 0 {
+	// If the directory is empty, exit
+	if len(f.saFiles) <= 0 {
 		return
 	}
 	/**
-	 *  从sa文件列表 随机取一个，并删除列表中的元素
+	 *  Select a random service account from the list
 	 */
-	r := rand.Intn(len(f.ServiceAccountFiles))
-	for k := range f.ServiceAccountFiles {
+	r := rand.Intn(len(f.saFiles))
+	for k := range f.saFiles {
 		if r == 0 {
 			opt.ServiceAccountFile = k
 		}
 		r--
 	}
-	// 从库存中删除
-	delete(f.ServiceAccountFiles, opt.ServiceAccountFile)
+	// Remove the service account from the list
+	delete(f.saFiles, opt.ServiceAccountFile)
 
 	/**
-	 * 创建 client 和 svc
+	 * Create a new authorized Drive client from service account
 	 */
 	loadedCreds, _ := ioutil.ReadFile(os.ExpandEnv(opt.ServiceAccountFile))
 	opt.ServiceAccountCredentials = string(loadedCreds)
 	oAuthClient, err := getServiceAccountClient(ctx, opt, []byte(opt.ServiceAccountCredentials))
 	if err != nil {
-		fmt.Errorf("failed to create oauth client from service account")
+		return nil, fmt.Errorf("failed to create oauth client from service account: %w", err)
 	}
 	f.client = oAuthClient
 	f.svc, err = drive.New(f.client)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create Drive client: %w", err)
+	}
+
+	if f.opt.V2DownloadMinSize >= 0 {
+		f.v2Svc, err = drive_v2.New(f.client)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't create Drive v2 client: %w", err)
+		}
+	}
+
 	fmt.Println("gclone sa file:", opt.ServiceAccountFile)
 }
+//------------------------------------------------------------
 
 // parseParse parses a drive 'url'
 func parseDrivePath(path string) (root string, err error) {
@@ -1193,13 +1218,12 @@ func newFs(ctx context.Context, name, path string, m configmap.Mapper) (*Fs, err
 	err := configstruct.Set(m, opt)
 	//-----------------------------------------------------------
 	maybeIsFile := false
-	// 添加  {id} 作为根目录功能
+	// Add {id} as root
 	if path != "" && path[0:1] == "{" {
 		idIndex := strings.Index(path, "}")
 		if idIndex > 0 {
 			RootId := path[1:idIndex]
 			name += RootId
-			//opt.ServerSideAcrossConfigs = true
 			if len(RootId) == 33 {
 				maybeIsFile = true
 				opt.RootFolderID = RootId
@@ -1210,8 +1234,8 @@ func newFs(ctx context.Context, name, path string, m configmap.Mapper) (*Fs, err
 			path = path[idIndex+1:]
 		}
 	}
-
 	//-----------------------------------------------------------
+
 	if err != nil {
 		return nil, err
 	}
@@ -1245,6 +1269,8 @@ func newFs(ctx context.Context, name, path string, m configmap.Mapper) (*Fs, err
 		grouping:     listRGrouping,
 		listRmu:      new(sync.Mutex),
 		listRempties: make(map[string]struct{}),
+		doChangeSvc:  new(sync.Mutex),
+		saFiles:      make(map[string]int),
 	}
 	f.isTeamDrive = opt.TeamDriveID != ""
 	f.fileFields = f.getFileFields()
@@ -1270,8 +1296,9 @@ func newFs(ctx context.Context, name, path string, m configmap.Mapper) (*Fs, err
 		}
 	}
 
+	//------------------------------------------------------
 	f.maybeIsFile = maybeIsFile
-
+	//------------------------------------------------------
 	return f, nil
 }
 
@@ -2541,7 +2568,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	if f.opt.CopyShortcutContent {
 		id = actualID(srcObj.id)
 	}
- 
+
 	var info *drive.File
 	err = f.pacer.Call(func() (bool, error) {
 		info, err = f.svc.Files.Copy(id, createInfo).
