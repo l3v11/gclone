@@ -777,7 +777,7 @@ func (f *Fs) changeSvc(ctx context.Context) {
 		f.saFiles = make(map[string]int)
 		dir_list, err := ioutil.ReadDir(opt.ServiceAccountFilePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read service account file path: %w", err)
+			fmt.Errorf("failed to read service account file path: %w", err)
 		}
 		for i, v := range dir_list {
 			filePath := fmt.Sprintf("%s%s", opt.ServiceAccountFilePath, v.Name())
@@ -810,18 +810,18 @@ func (f *Fs) changeSvc(ctx context.Context) {
 	opt.ServiceAccountCredentials = string(loadedCreds)
 	oAuthClient, err := getServiceAccountClient(ctx, opt, []byte(opt.ServiceAccountCredentials))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create oauth client from service account: %w", err)
+		fmt.Errorf("failed to create oauth client from service account: %w", err)
 	}
 	f.client = oAuthClient
 	f.svc, err = drive.New(f.client)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create Drive client: %w", err)
+		fmt.Errorf("couldn't create Drive client: %w", err)
 	}
 
 	if f.opt.V2DownloadMinSize >= 0 {
 		f.v2Svc, err = drive_v2.New(f.client)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create Drive v2 client: %w", err)
+			fmt.Errorf("couldn't create Drive v2 client: %w", err)
 		}
 	}
 
