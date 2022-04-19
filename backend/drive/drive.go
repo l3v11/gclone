@@ -825,7 +825,7 @@ func (f *Fs) changeSvc(ctx context.Context) {
 		}
 	}
 
-	fmt.Println("gclone sa file:", opt.ServiceAccountFile)
+	fs.Infof("Using sa file", opt.ServiceAccountFile)
 }
 //------------------------------------------------------------
 
