@@ -572,6 +572,27 @@ If this is set then rclone will not show any dangling shortcuts in listings.
 			Advanced: true,
 			Default:  false,
 		}, {
+			Name: "resource_key",
+			Help: `Resource key for accessing a link-shared file.
+
+If you need to access files shared with a link like this
+
+    https://drive.google.com/drive/folders/XXX?resourcekey=YYY&usp=sharing
+
+Then you will need to use the first part "XXX" as the "root_folder_id"
+and the second part "YYY" as the "resource_key" otherwise you will get
+404 not found errors when trying to access the directory.
+
+See: https://developers.google.com/drive/api/guides/resource-keys
+
+This resource key requirement only applies to a subset of old files.
+
+Note also that opening the folder once in the web interface (with the
+user you've authenticated rclone with) seems to be enough so that the
+resource key is no needed.
+`,
+			Advanced: true,
+		}, {
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
@@ -635,6 +656,7 @@ type Options struct {
 	StopOnDownloadLimit       bool                 `config:"stop_on_download_limit"`
 	SkipShortcuts             bool                 `config:"skip_shortcuts"`
 	SkipDanglingShortcuts     bool                 `config:"skip_dangling_shortcuts"`
+	ResourceKey               string               `config:"resource_key"`
 	Enc                       encoder.MultiEncoder `config:"encoding"`
 }
 
@@ -660,6 +682,7 @@ type Fs struct {
 	grouping         int32               // number of IDs to search at once in ListR - read with atomic
 	listRmu          *sync.Mutex         // protects listRempties
 	listRempties     map[string]struct{} // IDs of supposedly empty directories which triggered grouping disable
+	dirResourceKeys  *sync.Map           // map directory ID to resource key
 	//------------------------------------------------------------
 	saFiles          map[string]int
 	doChangeSvc      *sync.Mutex
@@ -891,6 +914,7 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 	// We must not filter with parent when we try list "ROOT" with drive-shared-with-me
 	// If we need to list file inside those shared folders, we must search it without sharedWithMe
 	parentsQuery := bytes.NewBufferString("(")
+	var resourceKeys []string
 	for _, dirID := range dirIDs {
 		if dirID == "" {
 			continue
@@ -911,7 +935,12 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 		} else {
 			_, _ = fmt.Fprintf(parentsQuery, "'%s' in parents", dirID)
 		}
+		resourceKey, hasResourceKey := f.dirResourceKeys.Load(dirID)
+		if hasResourceKey {
+			resourceKeys = append(resourceKeys, fmt.Sprintf("%s/%s", dirID, resourceKey))
+		}
 	}
+	resourceKeysHeader := strings.Join(resourceKeys, ",")
 	if parentsQuery.Len() > 1 {
 		_ = parentsQuery.WriteByte(')')
 		query = append(query, parentsQuery.String())
@@ -982,6 +1011,10 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 	// If using appDataFolder then need to add Spaces
 	if f.rootFolderID == "appDataFolder" {
 		list.Spaces("appDataFolder")
+	}
+	// Add resource Keys if necessary
+	if resourceKeysHeader != "" {
+		list.Header().Add("X-Goog-Drive-Resource-Keys", resourceKeysHeader)
 	}
 
 	fields := fmt.Sprintf("files(%s),nextPageToken,incompleteSearch", f.fileFields)
@@ -1262,17 +1295,18 @@ func newFs(ctx context.Context, name, path string, m configmap.Mapper) (*Fs, err
 
 	ci := fs.GetConfig(ctx)
 	f := &Fs{
-		name:         name,
-		root:         root,
-		opt:          *opt,
-		ci:           ci,
-		pacer:        fs.NewPacer(ctx, pacer.NewGoogleDrive(pacer.MinSleep(opt.PacerMinSleep), pacer.Burst(opt.PacerBurst))),
-		m:            m,
-		grouping:     listRGrouping,
-		listRmu:      new(sync.Mutex),
-		listRempties: make(map[string]struct{}),
-		doChangeSvc:  new(sync.Mutex),
-		saFiles:      make(map[string]int),
+		name:            name,
+		root:            root,
+		opt:             *opt,
+		ci:              ci,
+		pacer:           fs.NewPacer(ctx, pacer.NewGoogleDrive(pacer.MinSleep(opt.PacerMinSleep), pacer.Burst(opt.PacerBurst))),
+		m:               m,
+		grouping:        listRGrouping,
+		listRmu:         new(sync.Mutex),
+		listRempties:    make(map[string]struct{}),
+		dirResourceKeys: new(sync.Map),
+		doChangeSvc:     new(sync.Mutex),
+		saFiles:         make(map[string]int),
 	}
 	f.isTeamDrive = opt.TeamDriveID != ""
 	f.fileFields = f.getFileFields()
@@ -1336,6 +1370,11 @@ func NewFs(ctx context.Context, name, path string, m configmap.Mapper) (fs.Fs, e
 	}
 
 	f.dirCache = dircache.New(f.root, f.rootFolderID, f)
+
+	// If resource key is set then cache it for the root folder id
+	if f.opt.ResourceKey != "" {
+		f.dirResourceKeys.Store(f.rootFolderID, f.opt.ResourceKey)
+	}
 
 	// Parse extensions
 	if f.opt.Extensions != "" {
@@ -2233,6 +2272,10 @@ func (f *Fs) itemToDirEntry(ctx context.Context, remote string, item *drive.File
 	case item.MimeType == driveFolderType:
 		// cache the directory ID for later lookups
 		f.dirCache.Put(remote, item.Id)
+		// cache the resource key for later lookups
+		if item.ResourceKey != "" {
+			f.dirResourceKeys.Store(item.Id, item.ResourceKey)
+		}
 		when, _ := time.Parse(timeFormatIn, item.ModifiedTime)
 		d := fs.NewDir(remote, when).SetID(item.Id)
 		if len(item.Parents) > 0 {
