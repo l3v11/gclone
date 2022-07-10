@@ -279,6 +279,7 @@ Leave blank normally.
 Fill in to access "Computers" folders (see docs), or for rclone to use
 a non root folder as its starting point.
 `,
+			Advanced: true,
 		}, {
 			Name: "service_account_file",
 			Help: "Service Account Credentials JSON file path.\n\nLeave blank normally.\nNeeded only if you want use SA instead of interactive login." + env.ShellExpandHelp,
@@ -2201,7 +2202,7 @@ func splitID(compositeID string) (actualID, shortcutID string) {
 
 // isShortcutID returns true if compositeID refers to a shortcut
 func isShortcutID(compositeID string) bool {
-	return strings.IndexRune(compositeID, shortcutSeparator) >= 0
+	return strings.ContainsRune(compositeID, shortcutSeparator)
 }
 
 // actualID returns an actual ID from a composite ID
@@ -2359,10 +2360,10 @@ func (f *Fs) PutUnchecked(ctx context.Context, in io.Reader, src fs.ObjectInfo, 
 
 			exportExt, _, _ = f.findExportFormatByMimeType(ctx, importMimeType)
 			if exportExt == "" {
-				return nil, fmt.Errorf("No export format found for %q", importMimeType)
+				return nil, fmt.Errorf("no export format found for %q", importMimeType)
 			}
 			if exportExt != srcExt && !f.opt.AllowImportNameChange {
-				return nil, fmt.Errorf("Can't convert %q to a document with a different export filetype (%q)", srcExt, exportExt)
+				return nil, fmt.Errorf("can't convert %q to a document with a different export filetype (%q)", srcExt, exportExt)
 			}
 		}
 	}
@@ -2667,7 +2668,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 // result of List()
 func (f *Fs) Purge(ctx context.Context, dir string) error {
 	if f.opt.TrashedOnly {
-		return errors.New("Can't purge with --drive-trashed-only. Use delete if you want to selectively delete files")
+		return errors.New("can't purge with --drive-trashed-only, use delete if you want to selectively delete files")
 	}
 	return f.purgeCheck(ctx, dir, false)
 }
@@ -3518,7 +3519,7 @@ func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[str
 			out["service_account_file"] = f.opt.ServiceAccountFile
 		}
 		if _, ok := opt["chunk_size"]; ok {
-			out["chunk_size"] = fmt.Sprintf("%s", f.opt.ChunkSize)
+			out["chunk_size"] = f.opt.ChunkSize.String()
 		}
 		return out, nil
 	case "set":
@@ -3535,11 +3536,11 @@ func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[str
 		}
 		if chunkSize, ok := opt["chunk_size"]; ok {
 			chunkSizeMap := make(map[string]string)
-			chunkSizeMap["previous"] = fmt.Sprintf("%s", f.opt.ChunkSize)
+			chunkSizeMap["previous"] = f.opt.ChunkSize.String()
 			if err = f.changeChunkSize(chunkSize); err != nil {
 				return out, err
 			}
-			chunkSizeString := fmt.Sprintf("%s", f.opt.ChunkSize)
+			chunkSizeString := f.opt.ChunkSize.String()
 			f.m.Set("chunk_size", chunkSizeString)
 			chunkSizeMap["current"] = chunkSizeString
 			out["chunk_size"] = chunkSizeMap
@@ -3583,13 +3584,13 @@ func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[str
 				names[name] = struct{}{}
 				lines = append(lines, "")
 				lines = append(lines, fmt.Sprintf("[%s]", name))
-				lines = append(lines, fmt.Sprintf("type = alias"))
+				lines = append(lines, "type = alias")
 				lines = append(lines, fmt.Sprintf("remote = %s,team_drive=%s,root_folder_id=:", f.name, drive.Id))
 				upstreams = append(upstreams, fmt.Sprintf(`"%s=%s:"`, name, name))
 			}
 			lines = append(lines, "")
-			lines = append(lines, fmt.Sprintf("[AllDrives]"))
-			lines = append(lines, fmt.Sprintf("type = combine"))
+			lines = append(lines, "[AllDrives]")
+			lines = append(lines, "type = combine")
 			lines = append(lines, fmt.Sprintf("upstreams = %s", strings.Join(upstreams, " ")))
 			return lines, nil
 		}
@@ -3664,12 +3665,6 @@ func (o *baseObject) Hash(ctx context.Context, t hash.Type) (string, error) {
 // Size returns the size of an object in bytes
 func (o *baseObject) Size() int64 {
 	return o.bytes
-}
-
-// getRemoteInfo returns a drive.File for the remote
-func (f *Fs) getRemoteInfo(ctx context.Context, remote string) (info *drive.File, err error) {
-	info, _, _, _, _, err = f.getRemoteInfoWithExport(ctx, remote)
-	return
 }
 
 // getRemoteInfoWithExport returns a drive.File and the export settings for the remote
@@ -3856,7 +3851,7 @@ func (o *baseObject) open(ctx context.Context, url string, options ...fs.OpenOpt
 				url += "acknowledgeAbuse=true"
 				_, res, err = o.httpResponse(ctx, url, "GET", options)
 			} else {
-				err = fmt.Errorf("Use the --drive-acknowledge-abuse flag to download this file: %w", err)
+				err = fmt.Errorf("use the --drive-acknowledge-abuse flag to download this file: %w", err)
 			}
 		}
 		if err != nil {
