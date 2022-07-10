@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job_name: ['linux', 'mac_amd64', 'mac_arm64', 'windows_amd64', 'windows_386']
+        job_name: ['linux', 'mac_amd64', 'mac_arm64', 'windows']
 
         include:
           - job_name: linux
@@ -42,21 +42,12 @@ jobs:
             build_flags: '-include "^darwin/arm64" -cgo -macos-arch arm64 -cgo-cflags=-I/usr/local/include -cgo-ldflags=-L/usr/local/lib'
             deploy: true
 
-          - job_name: windows_amd64
+          - job_name: windows
             os: windows-latest
             go: '1.17.x'
             gotags: cmount
-            build_flags: '-include "^windows/amd64" -cgo'
-            build_args: '-buildmode exe'
-            deploy: true
-
-          - job_name: windows_386
-            os: windows-latest
-            go: '1.17.x'
-            gotags: cmount
-            goarch: '386'
-            cgo: '1'
-            build_flags: '-include "^windows/386" -cgo'
+            cgo: '0'
+            build_flags: '-include "^windows/"'
             build_args: '-buildmode exe'
             deploy: true
 
