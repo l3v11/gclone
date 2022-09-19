@@ -513,8 +513,8 @@ github.com/prometheus/procfs v0.7.3 h1:4jVXhlkAyzOScmCkXBTOLRLTz8EeU+eyjrwB/EPq0
 github.com/prometheus/procfs v0.7.3/go.mod h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1xBZuNvfVA=
 github.com/putdotio/go-putio/putio v0.0.0-20200123120452-16d982cac2b8 h1:Y258uzXU/potCYnQd1r6wlAnoMB68BiCkCcCnKx1SH8=
 github.com/putdotio/go-putio/putio v0.0.0-20200123120452-16d982cac2b8/go.mod h1:bSJjRokAHHOhA+XFxplld8w2R/dXLH7Z3BZ532vhFwU=
-github.com/rclone/rclone v1.59.1 h1:ygzkjbgrNLZh33Yd9/KfJSwlT5hmlpRZf4t3wJVMjsY=
-github.com/rclone/rclone v1.59.1/go.mod h1:22wVq/p6X8XGy5LW+oQDlfH8E43qt1B07FY6DBA0CdY=
+github.com/rclone/rclone v1.59.2 h1:T6eDdWmw85QUlhhxwHy6/XeuEGvLcmGZmZ82XHqSrA0=
+github.com/rclone/rclone v1.59.2/go.mod h1:22wVq/p6X8XGy5LW+oQDlfH8E43qt1B07FY6DBA0CdY=
 github.com/rfjakob/eme v1.1.2 h1:SxziR8msSOElPayZNFfQw4Tjx/Sbaeeh3eRvrHVMUs4=
 github.com/rfjakob/eme v1.1.2/go.mod h1:cVvpasglm/G3ngEfcfT/Wt0GwhkuO32pf/poW6Nyk1k=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
