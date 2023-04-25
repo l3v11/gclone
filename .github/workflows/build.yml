@@ -8,11 +8,11 @@ name: build
 on:
   push:
     tags:
-      - '*'
-  pull_request:
+      - '**'
 
 jobs:
   build:
+    if: ${{ github.event.inputs.manual == 'true' || (github.repository == 'l3v11/gclone' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)) }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -22,7 +22,7 @@ jobs:
         include:
           - job_name: linux
             os: ubuntu-latest
-            go: '1.19'
+            go: '1.20'
             gotags: cmount
             build_flags: '-include "^linux/" -exclude "^(linux/mips|linux/mipsle)"'
             check: false
@@ -30,21 +30,21 @@ jobs:
 
           - job_name: mac_amd64
             os: macos-11
-            go: '1.19'
+            go: '1.20'
             gotags: 'cmount'
             build_flags: '-include "^darwin/amd64" -cgo'
             deploy: true
 
           - job_name: mac_arm64
             os: macos-11
-            go: '1.19'
+            go: '1.20'
             gotags: 'cmount'
             build_flags: '-include "^darwin/arm64" -cgo -macos-arch arm64 -cgo-cflags=-I/usr/local/include -cgo-ldflags=-L/usr/local/lib'
             deploy: true
 
           - job_name: windows
             os: windows-latest
-            go: '1.19'
+            go: '1.20'
             gotags: cmount
             cgo: '0'
             build_flags: '-include "^windows/"'
@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
@@ -82,7 +82,7 @@ jobs:
           sudo modprobe fuse
           sudo chmod 666 /dev/fuse
           sudo chown root:$USER /etc/fuse.conf
-          sudo apt-get install fuse libfuse-dev rpm pkg-config
+          sudo apt-get install fuse3 libfuse-dev rpm pkg-config
         if: matrix.os == 'ubuntu-latest'
 
       - name: Install Libraries on macOS
@@ -138,4 +138,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # working-directory: '$(modulePath)'
         # Deploy binaries if enabled in config && not a PR && not a fork
-        if: matrix.deploy && github.head_ref == '' && github.repository == 'l3v11/gclone'
+        if: env.GITHUB_TOKEN != '' && matrix.deploy && github.head_ref == '' && github.repository == 'l3v11/gclone'

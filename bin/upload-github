@@ -14,7 +14,6 @@ if [ "$1" == "" ]; then
 fi
 VERSION="$1"
 
-function create_release() {
 cat > "/tmp/${VERSION}-release-notes" <<EOF
 This is the ${VERSION} release of gclone.
 EOF
@@ -24,14 +23,10 @@ echo "Making release ${VERSION} to repo ${REPO}"
 gh release create "${VERSION}" \
     --repo ${REPO} \
     --title "gclone ${VERSION}" \
-    --notes-file "/tmp/${VERSION}-release-notes"
-}
-{
-  create_release
-} || {
-  echo "Skipped release creation"
-}
-for build in build/*.zip build/version.txt; do
+    --notes-file "/tmp/${VERSION}-release-notes" \
+    --draft=true
+
+for build in build/*; do
     case $build in
         *current*) continue ;;
     esac
@@ -41,6 +36,10 @@ for build in build/*.zip build/version.txt; do
         --repo ${REPO} \
         "${build}"
 done
+
+gh release edit "${VERSION}" \
+    --repo ${REPO} \
+    --draft=false
 
 gh release view "${VERSION}" \
     --repo ${REPO}
