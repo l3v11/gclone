@@ -766,7 +766,7 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 		}
 		if len(gerr.Errors) > 0 {
 			reason := gerr.Errors[0].Reason
-			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" {
+			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" || reason == "downloadQuotaExceeded" {
 				// If ServiceAccountFilePath exists, call changeSvc and try again
 				if f.opt.ServiceAccountFilePath != "" {
 					f.doChangeSvc.Lock()
@@ -779,9 +779,6 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 					return false, fserrors.FatalError(err)
 				}
 				return true, err
-			} else if f.opt.StopOnDownloadLimit && reason == "downloadQuotaExceeded" {
-				fs.Errorf(f, "Received download limit error: %v", err)
-				return false, fserrors.FatalError(err)
 			} else if f.opt.StopOnUploadLimit && (reason == "quotaExceeded" || reason == "storageQuotaExceeded") {
 				fs.Errorf(f, "Received upload limit error: %v", err)
 				return false, fserrors.FatalError(err)
