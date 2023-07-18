@@ -12,7 +12,7 @@ Gclone *(a modified version of the [rclone](https://github.com/rclone/rclone))* 
 
 ### 1. Configuring the service_account_file_path
 
-Add `service_account_file_path` in config file for dynamic replacement of Service Accounts (SAs). Replaces when `rateLimitExceeded` error occurs.
+Add `service_account_file_path` in config file for dynamic replacement of Service Accounts (SAs). Replaces when `rateLimitExceeded` or `downloadQuotaExceeded` error occurs.
 
 > ***rclone.conf*** example:
 ```
