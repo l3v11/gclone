@@ -802,17 +802,18 @@ func (f *Fs) changeSvc(ctx context.Context) {
 	 *  Get a list of service account files from directory
 	 */
 	if opt.ServiceAccountFilePath != "" && len(f.saFiles) == 0 {
+		saPath := env.ShellExpand(opt.ServiceAccountFilePath)
 		pathSeparator := string(os.PathSeparator)
-		if !strings.HasSuffix(opt.ServiceAccountFilePath, pathSeparator) {
-			opt.ServiceAccountFilePath += pathSeparator
+		if !strings.HasSuffix(saPath, pathSeparator) {
+			saPath += pathSeparator
 		}
 		f.saFiles = make(map[string]int)
-		dir_list, err := os.ReadDir(opt.ServiceAccountFilePath)
+		dir_list, err := os.ReadDir(saPath)
 		if err != nil {
 			fmt.Errorf("failed to read service account file path: %w", err)
 		}
 		for i, v := range dir_list {
-			filePath := fmt.Sprintf("%s%s", opt.ServiceAccountFilePath, v.Name())
+			filePath := fmt.Sprintf("%s%s", saPath, v.Name())
 			if ".json" == path.Ext(filePath) {
 				f.saFiles[filePath] = i
 			}
