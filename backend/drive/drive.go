@@ -622,46 +622,46 @@ resource key is no needed.
 
 // Options defines the configuration for this backend
 type Options struct {
-	Scope                     string               `config:"scope"`
-	RootFolderID              string               `config:"root_folder_id"`
-	ServiceAccountFile        string               `config:"service_account_file"`
-	ServiceAccountCredentials string               `config:"service_account_credentials"`
+	Scope                     string `config:"scope"`
+	RootFolderID              string `config:"root_folder_id"`
+	ServiceAccountFile        string `config:"service_account_file"`
+	ServiceAccountCredentials string `config:"service_account_credentials"`
 	//------------------------------------------------------------
-	ServiceAccountFilePath    string               `config:"service_account_file_path"`
+	ServiceAccountFilePath string `config:"service_account_file_path"`
 	//------------------------------------------------------------
-	TeamDriveID               string               `config:"team_drive"`
-	AuthOwnerOnly             bool                 `config:"auth_owner_only"`
-	UseTrash                  bool                 `config:"use_trash"`
-	CopyShortcutContent       bool                 `config:"copy_shortcut_content"`
-	SkipGdocs                 bool                 `config:"skip_gdocs"`
-	SkipChecksumGphotos       bool                 `config:"skip_checksum_gphotos"`
-	SharedWithMe              bool                 `config:"shared_with_me"`
-	TrashedOnly               bool                 `config:"trashed_only"`
-	StarredOnly               bool                 `config:"starred_only"`
-	Extensions                string               `config:"formats"`
-	ExportExtensions          string               `config:"export_formats"`
-	ImportExtensions          string               `config:"import_formats"`
-	AllowImportNameChange     bool                 `config:"allow_import_name_change"`
-	UseCreatedDate            bool                 `config:"use_created_date"`
-	UseSharedDate             bool                 `config:"use_shared_date"`
-	ListChunk                 int64                `config:"list_chunk"`
-	Impersonate               string               `config:"impersonate"`
-	UploadCutoff              fs.SizeSuffix        `config:"upload_cutoff"`
-	ChunkSize                 fs.SizeSuffix        `config:"chunk_size"`
-	AcknowledgeAbuse          bool                 `config:"acknowledge_abuse"`
-	KeepRevisionForever       bool                 `config:"keep_revision_forever"`
-	SizeAsQuota               bool                 `config:"size_as_quota"`
-	V2DownloadMinSize         fs.SizeSuffix        `config:"v2_download_min_size"`
-	PacerMinSleep             fs.Duration          `config:"pacer_min_sleep"`
-	PacerBurst                int                  `config:"pacer_burst"`
-	ServerSideAcrossConfigs   bool                 `config:"server_side_across_configs"`
-	DisableHTTP2              bool                 `config:"disable_http2"`
-	StopOnUploadLimit         bool                 `config:"stop_on_upload_limit"`
-	StopOnDownloadLimit       bool                 `config:"stop_on_download_limit"`
-	SkipShortcuts             bool                 `config:"skip_shortcuts"`
-	SkipDanglingShortcuts     bool                 `config:"skip_dangling_shortcuts"`
-	ResourceKey               string               `config:"resource_key"`
-	Enc                       encoder.MultiEncoder `config:"encoding"`
+	TeamDriveID             string               `config:"team_drive"`
+	AuthOwnerOnly           bool                 `config:"auth_owner_only"`
+	UseTrash                bool                 `config:"use_trash"`
+	CopyShortcutContent     bool                 `config:"copy_shortcut_content"`
+	SkipGdocs               bool                 `config:"skip_gdocs"`
+	SkipChecksumGphotos     bool                 `config:"skip_checksum_gphotos"`
+	SharedWithMe            bool                 `config:"shared_with_me"`
+	TrashedOnly             bool                 `config:"trashed_only"`
+	StarredOnly             bool                 `config:"starred_only"`
+	Extensions              string               `config:"formats"`
+	ExportExtensions        string               `config:"export_formats"`
+	ImportExtensions        string               `config:"import_formats"`
+	AllowImportNameChange   bool                 `config:"allow_import_name_change"`
+	UseCreatedDate          bool                 `config:"use_created_date"`
+	UseSharedDate           bool                 `config:"use_shared_date"`
+	ListChunk               int64                `config:"list_chunk"`
+	Impersonate             string               `config:"impersonate"`
+	UploadCutoff            fs.SizeSuffix        `config:"upload_cutoff"`
+	ChunkSize               fs.SizeSuffix        `config:"chunk_size"`
+	AcknowledgeAbuse        bool                 `config:"acknowledge_abuse"`
+	KeepRevisionForever     bool                 `config:"keep_revision_forever"`
+	SizeAsQuota             bool                 `config:"size_as_quota"`
+	V2DownloadMinSize       fs.SizeSuffix        `config:"v2_download_min_size"`
+	PacerMinSleep           fs.Duration          `config:"pacer_min_sleep"`
+	PacerBurst              int                  `config:"pacer_burst"`
+	ServerSideAcrossConfigs bool                 `config:"server_side_across_configs"`
+	DisableHTTP2            bool                 `config:"disable_http2"`
+	StopOnUploadLimit       bool                 `config:"stop_on_upload_limit"`
+	StopOnDownloadLimit     bool                 `config:"stop_on_download_limit"`
+	SkipShortcuts           bool                 `config:"skip_shortcuts"`
+	SkipDanglingShortcuts   bool                 `config:"skip_dangling_shortcuts"`
+	ResourceKey             string               `config:"resource_key"`
+	Enc                     encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote drive server
@@ -688,10 +688,10 @@ type Fs struct {
 	listRempties     map[string]struct{} // IDs of supposedly empty directories which triggered grouping disable
 	dirResourceKeys  *sync.Map           // map directory ID to resource key
 	//------------------------------------------------------------
-	saFiles          map[string]int
-	doChangeSvc      *sync.Mutex
-	FileObj          *fs.Object
-	maybeIsFile      bool
+	saFiles     map[string]int
+	doChangeSvc *sync.Mutex
+	FileObj     *fs.Object
+	maybeIsFile bool
 	//------------------------------------------------------------
 }
 
@@ -766,7 +766,7 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 		}
 		if len(gerr.Errors) > 0 {
 			reason := gerr.Errors[0].Reason
-			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" {
+			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" || reason == "downloadQuotaExceeded" {
 				// If ServiceAccountFilePath exists, call changeSvc and try again
 				if f.opt.ServiceAccountFilePath != "" {
 					f.doChangeSvc.Lock()
@@ -777,11 +777,11 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 				if f.opt.StopOnUploadLimit && gerr.Errors[0].Message == "User rate limit exceeded." {
 					fs.Errorf(f, "Received upload limit error: %v", err)
 					return false, fserrors.FatalError(err)
+				} else if f.opt.StopOnDownloadLimit && reason == "downloadQuotaExceeded" {
+					fs.Errorf(f, "Received download limit error: %v", err)
+					return false, fserrors.FatalError(err)
 				}
 				return true, err
-			} else if f.opt.StopOnDownloadLimit && reason == "downloadQuotaExceeded" {
-				fs.Errorf(f, "Received download limit error: %v", err)
-				return false, fserrors.FatalError(err)
 			} else if f.opt.StopOnUploadLimit && (reason == "quotaExceeded" || reason == "storageQuotaExceeded") {
 				fs.Errorf(f, "Received upload limit error: %v", err)
 				return false, fserrors.FatalError(err)
@@ -794,7 +794,7 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 	return false, err
 }
 
-//------------------------------------------------------------
+// ------------------------------------------------------------
 // Replaces service account file
 func (f *Fs) changeSvc(ctx context.Context) {
 	opt := &f.opt
@@ -859,6 +859,7 @@ func (f *Fs) changeSvc(ctx context.Context) {
 
 	fs.Infof("Using sa file", opt.ServiceAccountFile)
 }
+
 //------------------------------------------------------------
 
 // parseParse parses a drive 'url'
