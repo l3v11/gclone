@@ -764,6 +764,7 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 			// All 5xx errors should be retried
 			return true, err
 		}
+		// update download
 		if len(gerr.Errors) > 0 {
 			reason := gerr.Errors[0].Reason
 			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" || reason == "downloadQuotaExceeded" {
